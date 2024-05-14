@@ -112,9 +112,9 @@ validate_void_ptr(const void* pt)
 void
 sys_exit(int status)
 {
-  struct thread* parent = thread_current()->parent_thread;
+  struct thread* parent = thread_current()->parent_process;
   printf("%s: exit(%d)\n", thread_current()->name, status);
-  if(parent) parent->child_status = status;
+  if(parent) parent->stat_of_chiled_thread = status;
   thread_exit();
 }
 
@@ -226,8 +226,8 @@ sys_open(char* name)
   {
     return -1;
   }
-  open->fd = ++thread_current()->fd_last;
-  list_push_back(&thread_current()->open_file_list,&open->elem);
+  open->fd = ++thread_current()->last_fd;
+  list_push_back(&thread_current()->files_opened_thread,&open->elem);
   return open->fd;
 }
 
@@ -454,7 +454,7 @@ close_wrapper(struct intr_frame *f)
 struct open_file* get_file(int fd){
     struct thread* t = thread_current();
     struct file* my_file = NULL;
-    for (struct list_elem* e = list_begin (&t->open_file_list); e != list_end (&t->open_file_list);
+    for (struct list_elem* e = list_begin (&t->files_opened_thread); e != list_end (&t->files_opened_thread);
     e = list_next (e))
     {
       struct open_file* opened_file = list_entry (e, struct open_file, elem);

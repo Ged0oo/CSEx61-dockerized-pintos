@@ -455,13 +455,13 @@ init_thread (struct thread *t, const char *name, int priority)
   t->priority = priority;
   t->magic = THREAD_MAGIC;
 
-  sema_init(&t->parent_child_sync_sema,0);
-  sema_init(&t->wait_child_sema,0);
-  list_init(&t->open_file_list);
-  list_init(&t->child_processe_list);
-  t->parent_thread = running_thread();
-  t->child_status = -2;
-  t->fd_last = 2;
+  sema_init(&t->parent_sync_semaphore,0);
+  sema_init(&t->child_sync_semaphore,0);
+  list_init(&t->files_opened_thread);
+  list_init(&t->thread_childs_list);
+  t->parent_process = running_thread();
+  t->stat_of_chiled_thread = -2;
+  t->last_fd = 2;
 
   old_level = intr_disable ();
   list_push_back (&all_list, &t->allelem);

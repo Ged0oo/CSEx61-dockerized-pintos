@@ -72,14 +72,14 @@ process_execute (const char *file_name)
     return TID_ERROR;
   }
 
-  sema_down(&thread_current()->parent_child_sync_sema);
+  sema_down(&thread_current()->parent_sync_semaphore);
 
   if (name)
   {
     palloc_free_page(name);
   }
 
-  if (!thread_current()->is_child_creation_success) 
+  if (!thread_current()->success_created_thread) 
   {
     return TID_ERROR;
   }
@@ -105,21 +105,21 @@ start_process (void *file_name_)
   success = load (file_name, &if_.eip, &if_.esp);
 
   struct thread* child = thread_current();
-  struct thread* parent = child->parent_thread;
+  struct thread* parent = child->parent_process;
 
   if (success) 
   {
-    parent->is_child_creation_success = true;
-    list_push_back(&parent->child_processe_list,&child->child_elem);
-    sema_up(&parent->parent_child_sync_sema);
-    sema_down(&child->parent_child_sync_sema);
+    parent->success_created_thread = true;
+    list_push_back(&parent->thread_childs_list,&child->child_list_of_thread);
+    sema_up(&parent->parent_sync_semaphore);
+    sema_down(&child->parent_sync_semaphore);
   }
 
   /* If load failed, quit. */
   palloc_free_page (file_name);
   if (!success) 
   {
-    sema_up(&parent->parent_child_sync_sema);
+    sema_up(&parent->parent_sync_semaphore);
     sys_exit(-1);
   }
 
@@ -147,10 +147,10 @@ process_wait (tid_t child_tid)
 {
   struct thread* parent = thread_current();
   struct thread* child = NULL;
-  for (struct list_elem* e = list_begin (&parent->child_processe_list); e != list_end (&parent->child_processe_list);
+  for (struct list_elem* e = list_begin (&parent->thread_childs_list); e != list_end (&parent->thread_childs_list);
   e = list_next (e))
   {
-    struct thread* child_process = list_entry (e, struct thread, child_elem);
+    struct thread* child_process = list_entry (e, struct thread, child_list_of_thread);
     if (child_process->tid == child_tid)
     {
       child = child_process;
@@ -158,10 +158,10 @@ process_wait (tid_t child_tid)
     }
   }
   if(child != NULL){
-    list_remove(&child->child_elem);
-    sema_up(&child->parent_child_sync_sema);
-    sema_down(&parent->wait_child_sema);
-    return parent->child_status;
+    list_remove(&child->child_list_of_thread);
+    sema_up(&child->parent_sync_semaphore);
+    sema_down(&parent->child_sync_semaphore);
+    return parent->stat_of_chiled_thread;
   }
   return -1;
 }
@@ -173,28 +173,28 @@ process_exit (void)
   struct thread *cur = thread_current ();
   uint32_t *pd;
 
-  while (!list_empty(&cur->open_file_list))
+  while (!list_empty(&cur->files_opened_thread))
   {
-    struct open_file* opened_file = list_entry(list_pop_back(&cur->open_file_list), struct open_file, elem);
+    struct open_file* opened_file = list_entry(list_pop_back(&cur->files_opened_thread), struct open_file, elem);
     file_close(opened_file->ptr);
     palloc_free_page(opened_file);
   }
 
-  while (!list_empty(&cur->child_processe_list))
+  while (!list_empty(&cur->thread_childs_list))
   {
-    struct thread* child = list_entry(list_pop_back(&cur->child_processe_list), struct thread, child_elem);
-    child->parent_thread = NULL;
-    sema_up(&child->parent_child_sync_sema);
+    struct thread* child = list_entry(list_pop_back(&cur->thread_childs_list), struct thread, child_list_of_thread);
+    child->parent_process = NULL;
+    sema_up(&child->parent_sync_semaphore);
   }
   
-  if (cur->executable_file != NULL)
+  if (cur->object_file != NULL)
   {
-    file_allow_write(cur->executable_file);
-    file_close(cur->executable_file);
+    file_allow_write(cur->object_file);
+    file_close(cur->object_file);
   }
 
-  if (cur->parent_thread != NULL)
-    sema_up(&cur->parent_thread->wait_child_sema);
+  if (cur->parent_process != NULL)
+    sema_up(&cur->parent_process->child_sync_semaphore);
 
   /* Destroy the current process's page directory and switch back
      to the kernel-only page directory. */
@@ -345,7 +345,7 @@ load (const char *file_name, void (**eip) (void), void **esp)
       goto done;
     }
   
-  t->executable_file = file;
+  t->object_file = file;
   file_deny_write(file);
 
   /* Read and verify executable header. */
