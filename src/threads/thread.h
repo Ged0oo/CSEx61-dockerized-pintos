@@ -96,13 +96,13 @@ struct thread
     /* Shared between thread.c and synch.c. */
     struct list_elem elem;              /* List element. */
 
-    struct list_elem donorelem;
+    struct list_elem donElement;
 
     int64_t tick_to_wakup;
-    int effectivePriority;
-    struct thread *locker;
-    struct list  AcquireLockList;
-    struct lock* waitingOnLock;
+    int ActualPriority;
+    struct thread *threadLocker;
+    struct list  LockList;
+    struct lock* LockWaiting;
 
     int nice;
 
@@ -154,6 +154,6 @@ void thread_set_nice (int);
 int thread_get_recent_cpu (void);
 int thread_get_load_avg (void);
 
-bool compare_between_priority(const struct list_elem *first, const struct list_elem *second, void *aux);
+bool PriorityCompare(const struct list_elem *first, const struct list_elem *second, void *aux);
 
 #endif /* threads/thread.h */
