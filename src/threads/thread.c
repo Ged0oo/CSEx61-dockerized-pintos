@@ -64,9 +64,8 @@ static unsigned thread_ticks;   /* # of timer ticks since last yield. */
    Controlled by kernel command-line option "-o mlfqs". */
 bool thread_mlfqs;
 
-
 Floating_t load_avg;
-extern struct list sleep_list;
+
 static void kernel_thread (thread_func *, void *aux);
 
 
@@ -150,8 +149,9 @@ thread_tick (void)
     {
         if(t != idle_thread)
         {
-            t->recent_cpu = Add_Fix_to_Int(t->recent_cpu, 1);
+            t->recent_cpu_value = Add_Fix_to_Int(t->recent_cpu_value, 1);// Increment the recent_cpu_value by 1 every tick
         }
+        else{}
 
         if(timer_ticks() % 100 == 0) // every 100 ticks
         {
@@ -164,9 +164,10 @@ thread_tick (void)
             for ( struct list_elem *elem= list_begin (&all_list) ; elem != list_end (&all_list) ; elem = list_next (elem)) 
             {
                 struct thread *temp_thread = list_entry (elem, struct thread, allelem);
-                temp_thread->recent_cpu = Add_Fix_to_Int(Mul_Fix(decay, temp_thread->recent_cpu),temp_thread->nice);
+                temp_thread->recent_cpu_value = Add_Fix_to_Int(Mul_Fix(decay, temp_thread->recent_cpu_value),temp_thread->nice_value);
             }
         }
+        else{}
 
         if(timer_ticks() % 4 == 0) // every 4 ticks
         {
@@ -174,8 +175,8 @@ thread_tick (void)
             for (struct list_elem *elem = list_begin (&all_list); elem != list_end (&all_list); elem = list_next (elem))
             {
                 struct thread *temp_thread = list_entry (elem, struct thread, allelem);
-                int temp_priority = PRI_MAX - Int_Round(Div_Fix_Int(temp_thread->recent_cpu,4)) - (temp_thread->nice * 2);
-                
+                int temp_priority = PRI_MAX - Int_Round(Div_Fix_Int(temp_thread->recent_cpu_value,4)) - (temp_thread->nice_value * 2);
+                // Check on periority level 
                 if(temp_priority > PRI_MAX)
                     temp_priority=PRI_MAX;
                 
@@ -187,6 +188,7 @@ thread_tick (void)
                 temp_thread->priority=temp_priority;
             }
         }
+        else{}
   }
 
 
@@ -305,7 +307,7 @@ void thread_unblock (struct thread *t)
     enum intr_level old_level = intr_disable ();
 
     ASSERT (t->status == THREAD_BLOCKED);
-
+    
     list_push_back (&ready_list, &t->elem);
     list_sort (&ready_list, PriorityCompare, NULL); // rearrange the ready list based on priority
 
@@ -413,28 +415,28 @@ void
 thread_set_priority (int new_priority) 
 {
     enum intr_level old_level = intr_disable ();
- 
-    if(list_empty(&thread_current()->LockList))
+
+    struct list Lock_List=thread_current()->LockList;
+
+    if(list_empty(&Lock_List))
     {
         thread_current()->priority = new_priority; 
         thread_current()->ActualPriority = new_priority;
     }
- 
     else if(new_priority > thread_current()->priority)
     {
         thread_current()->priority = new_priority;
         thread_current()->ActualPriority = new_priority;
     }
- 
     else
         thread_current()->ActualPriority = new_priority;
 
     if(!list_empty(&ready_list))
     {
-        struct list_elem *front = list_front(&ready_list);
-        struct thread *fthread = list_entry (front, struct thread, elem);
+        struct list_elem *front_element = list_front(&ready_list);
+        struct thread *front_thread = list_entry (front_element, struct thread, elem);
 
-        if(fthread->priority > thread_current ()->priority)
+        if(front_thread->priority > thread_current ()->priority)
             thread_yield();
     }
 
@@ -452,14 +454,14 @@ int thread_get_priority (void)
 /* Sets the current thread's nice value to NICE. */
 void thread_set_nice (int nice UNUSED) 
 {
-    thread_current()->nice = nice;
+    thread_current()->nice_value = nice;
 }
 
 
 /* Returns the current thread's nice value. */
 int thread_get_nice (void) 
 {
-    return thread_current()->nice;
+    return thread_current()->nice_value;
 }
 
 
@@ -473,7 +475,7 @@ int thread_get_load_avg (void)
 /* Returns 100 times the current thread's recent_cpu value. */
 int thread_get_recent_cpu (void) 
 {
-    return Int_Round(Mul_Fix_with_Int(thread_current()->recent_cpu,100)) ;
+    return Int_Round(Mul_Fix_with_Int(thread_current()->recent_cpu_value,100)) ;
 }
 
 
@@ -568,20 +570,20 @@ init_thread (struct thread *t, const char *name, int priority)
     strlcpy (t->name, name, sizeof t->name);
     t->stack = (uint8_t *) t + PGSIZE;
     
-    if (thread_mlfqs == false)
+    if (!thread_mlfqs )
     {
         t->priority = priority;
     }
     
-    else if(thread_mlfqs == true)
+    else if(thread_mlfqs)
     {
         if(strcmp(t->name,"main")==0)
-            t->recent_cpu = 0;
+            t->recent_cpu_value = 0;
 
         else
-            t->recent_cpu = Div_Fix_Int(thread_get_recent_cpu(),100);
+            t->recent_cpu_value = Div_Fix_Int(thread_get_recent_cpu(),100);
 
-        priority = PRI_MAX - Int_Round(Div_Fix_Int(t->recent_cpu,4)) - (t->nice * 2);
+        priority = PRI_MAX - Int_Round(Div_Fix_Int(t->recent_cpu_value,4)) - (t->nice_value * 2);
     }
       
     t->ActualPriority = priority;
@@ -616,9 +618,8 @@ static struct thread *next_thread_to_run (void)
 {
     if (list_empty (&ready_list))
         return idle_thread;
-    
     else
-        return list_entry (list_pop_front (&ready_list), struct thread, elem);
+        return list_entry (list_pop_front (&ready_list), struct thread, elem); // Take first thread in the list
 }
 
 
@@ -711,9 +712,9 @@ static tid_t allocate_tid (void)
 uint32_t thread_stack_ofs = offsetof (struct thread, stack);
 
 
-bool PriorityCompare(const struct list_elem *first, const struct list_elem *second, void *aux)
+bool PriorityCompare(const struct list_elem *a, const struct list_elem *b, void *aux)
 {
-    struct thread *thread_1 = list_entry (first, struct thread, elem);
-    struct thread *thread_2 = list_entry (second, struct thread, elem);
+    struct thread *thread_1 = list_entry (a, struct thread, elem);
+    struct thread *thread_2 = list_entry (b, struct thread, elem);
     return thread_1->priority > thread_2->priority;
 }

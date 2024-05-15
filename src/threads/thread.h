@@ -96,17 +96,16 @@ struct thread
     /* Shared between thread.c and synch.c. */
     struct list_elem elem;              /* List element. */
 
+// Added elements for phase 1
     struct list_elem donElement;
-
     int64_t tick_to_wakup;
     int ActualPriority;
     struct thread *threadLocker;
     struct list  LockList;
     struct lock* LockWaiting;
-
-    int nice;
-
-    int recent_cpu;
+// Added elements for MLFQS part
+    int nice_value;
+    int recent_cpu_value;
 
 #ifdef USERPROG
     /* Owned by userprog/process.c. */
