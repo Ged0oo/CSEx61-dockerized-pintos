@@ -63,7 +63,6 @@ static unsigned thread_ticks;   /* # of timer ticks since last yield. */
    If true, use multi-level feedback queue scheduler.
    Controlled by kernel command-line option "-o mlfqs". */
 bool thread_mlfqs;
-
 Floating_t load_avg;
 
 static void kernel_thread (thread_func *, void *aux);
@@ -416,9 +415,7 @@ thread_set_priority (int new_priority)
 {
     enum intr_level old_level = intr_disable ();
 
-    struct list Lock_List=thread_current()->LockList;
-
-    if(list_empty(&Lock_List))
+    if(list_empty(&(thread_current()->LockList)))
     {
         thread_current()->priority = new_priority; 
         thread_current()->ActualPriority = new_priority;
