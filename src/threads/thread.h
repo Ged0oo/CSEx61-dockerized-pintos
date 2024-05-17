@@ -7,6 +7,13 @@
 #include "threads/synch.h"
 #include "filesys/file.h"
 
+struct child_process
+  {
+      int pid;
+      struct thread *t ;
+      struct list_elem elem;
+  };
+
 /* States in a thread's life cycle. */
 enum thread_status
   {
@@ -25,12 +32,6 @@ typedef int tid_t;
 #define PRI_MIN 0                       /* Lowest priority. */
 #define PRI_DEFAULT 31                  /* Default priority. */
 #define PRI_MAX 63                      /* Highest priority. */
-
-struct open_file{
-   int fd;
-   struct file* ptr;
-   struct list_elem elem;
-};
 
 /* A kernel thread or user process.
 
@@ -96,30 +97,29 @@ struct thread
     char name[16];                      /* Name (for debugging purposes). */
     uint8_t *stack;                     /* Saved stack pointer. */
     int priority;                       /* Priority. */
-    struct list_elem allelem;           /* List element for all threads list. */
 
+    // us
+    int64_t sleeping_ticks;             /* # of ticks to sleep. */
+    struct list child_list ;            /* list of children . */
+    struct thread * parent_thread;      /* parent of this threads. */
+    bool child_succedeed ;              /* to check child creation success. */
+    int child_status ;
+    tid_t waiting_on ;                  /* to set which child this thread waiting for. */
+    struct semaphore parent_child_sync ; /* to synchronize between parent and child. */
+    struct list files;                   /* opened files */
+    int fd_last;
+    struct file *fd_exec;
+    ////////
+
+    struct list_elem allelem;           /* List element for all threads list. */
     /* Shared between thread.c and synch.c. */
     struct list_elem elem;              /* List element. */
-    
-    /* Start pintos part 2. */
-
-    struct list files_opened_thread;          // list of opened files
-    struct list thread_childs_list;	 // list of child of the process
-    struct thread* parent_process;        // parent of the process
-    bool success_created_thread;
-    int stat_of_chiled_thread;
-    struct file* object_file;
-    struct semaphore child_sync_semaphore;
-    struct semaphore parent_sync_semaphore;
-    int last_fd;
-    struct list_elem child_list_of_thread;
-
-    /* End pintos part 2. */
 
 
+#ifdef USERPROG
     /* Owned by userprog/process.c. */
     uint32_t *pagedir;                  /* Page directory. */
-
+#endif
 
     /* Owned by thread.c. */
     unsigned magic;                     /* Detects stack overflow. */
