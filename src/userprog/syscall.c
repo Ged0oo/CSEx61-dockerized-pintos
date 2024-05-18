@@ -1,3 +1,4 @@
+
 #include "userprog/syscall.h"
 #include <stdio.h>
 #include <stdlib.h>
@@ -12,7 +13,7 @@
 
 static void syscall_handler (struct intr_frame *);
 static struct lock files_sync_lock;
-int get_int (int **esp, int i);
+int get_int (int esp, int i);
 void switch_call(int sys_code);
 char* get_char_ptr(char*** esp, int i);
 void* get_void_ptr(void*** esp, int i);
@@ -30,204 +31,205 @@ syscall_init (void)
   lock_init(&sys_lock);
 }
 
-int get_int (int** esp, int i){
+int get_int (int esp, int i){
   int sys_code = *((int*)esp + i);
   return sys_code;
 }
 
 
 char* get_char_ptr(char*** esp, int i){
-	char* sys_code_char= (char*)(*((int*)esp + i));
-	return sys_code_char;
+  char* sys_code_char= (char*)(*((int*)esp + i));
+  return sys_code_char;
 }
 
 void* get_void_ptr(void*** esp, int i){
-	void* sys_code_void = (void*)(*((int*)esp + i));
-	return sys_code_void;
+  void* sys_code_void = (void*)(*((int*)esp + i));
+  return sys_code_void;
 }
 
 static void
 syscall_handler (struct intr_frame *f UNUSED)
 {
-  void **esp=f->esp;
+  void **esp = f->esp;
   validate_void_ptr(esp);
-  int sys_code  = get_int ((int**)esp, 0);
+  int sys_code  = get_int ((int)esp, 0);
 
   switch (sys_code){
 
-  	case SYS_HALT:
-	{
-		//halt();
+    case SYS_HALT:
+  {
+    //halt();
 
-		shutdown_power_off();
-		break;
-	}
+    shutdown_power_off();
+    break;
+  }
 
-	case SYS_EXIT:
-	{
-		//wrapper_exit (f);
+  case SYS_EXIT:
+  {
+    //wrapper_exit (f);
 
-		int status = get_int((int**)f->esp, 1);
-		validate_void_ptr((const void*)status);
-		exit (status);
-		break;
-	}
+    int status = get_int((int**)f->esp, 1);
+    validate_void_ptr((const void*)status);
+    exit (status);
+    break;
+  }
 
-	case SYS_EXEC:
-	{
-		//f->eax = wrapper_exec (f);
-		
-		char* cmd_line = get_char_ptr((char***)(f->esp), 1);
-		validate_void_ptr((const void*)cmd_line);
-		f->eax = exec (cmd_line);
-		
-		break;
-	}
+  case SYS_EXEC:
+  {
+    //f->eax = wrapper_exec (f);
+    
+    char* cmd_line = get_char_ptr((char***)(f->esp), 1);
+    validate_void_ptr((const void*)cmd_line);
+    f->eax = exec (cmd_line);
+    
+    break;
+  }
 
-	case SYS_WAIT:
-	{
-		//f->eax = wrapper_wait (f);
-		
-		int pid = get_int((int**)(f->esp), 1);
-		validate_void_ptr((const void*)pid);
-		f->eax = wait (pid);
+  case SYS_WAIT:
+  {
+    //f->eax = wrapper_wait (f);
+    
+    int pid = get_int((int**)(f->esp), 1);
+    validate_void_ptr((const void*)pid);
+    f->eax = wait (pid);
 
-		break;
-	}
+    break;
+  }
 
-	case SYS_CREATE:
-	{
-		//f->eax = wrapper_create (f);
-		
-		char* file = get_char_ptr((char***)(f->esp), 1);
-		validate_void_ptr((const void*)file);
+  case SYS_CREATE:
+  {
+    //f->eax = wrapper_create (f);
+    
+    char* file = get_char_ptr((char***)(f->esp), 1);
+    validate_void_ptr((const void*)file);
 
-		int initial_size = get_int((int**)(f->esp), 2);
-		validate_void_ptr((const void*)initial_size);
+    int initial_size = get_int((int**)(f->esp), 2);
+    validate_void_ptr((const void*)initial_size);
 
-		f->eax = create (file, initial_size);
+    f->eax = create (file, initial_size);
 
-		break;
-	}
+    break;
+  }
 
-	case SYS_REMOVE:
-	{
-		//f->eax = wrapper_remove (f);
-		
-		char* file = get_char_ptr((char***)(f->esp), 1);
-		validate_void_ptr((const void*)file);
+  case SYS_REMOVE:
+  {
+    //f->eax = wrapper_remove (f);
+    
+    char* file = get_char_ptr((char***)(f->esp), 1);
+    validate_void_ptr((const void*)file);
 
-		f->eax = rmv (file);
-		
-		break;
-	}
+    f->eax = rmv (file);
+    
+    break;
+  }
 
-	case SYS_OPEN:
-	{
-		//f->eax = wrapper_open (f);
-		
-		char* file = get_char_ptr((char***)(f->esp), 1);
-		validate_void_ptr((const void*)file);
+  case SYS_OPEN:
+  {
+    //f->eax = wrapper_open (f);
+    
+    char* file = get_char_ptr((char***)(f->esp), 1);
+    validate_void_ptr((const void*)file);
 
-		f->eax = open (file);
-		
-		break;
-	}
+    f->eax = open (file);
+    
+    break;
+  }
 
-	case SYS_FILESIZE:
-	{
-		//f->eax = wrapper_filesize (f);
-		
-		int fd = get_int((int**)(f->esp), 1);
-		validate_void_ptr((const void*)fd);
+  case SYS_FILESIZE:
+  {
+    //f->eax = wrapper_filesize (f);
+    
+    int fd = get_int((int**)(f->esp), 1);
+    validate_void_ptr((const void*)fd);
 
-		f->eax = filesize (fd);
-		
-		break;
-	}
+    f->eax = filesize (fd);
+    
+    break;
+  }
 
-	case SYS_READ:
-	{
-		//f->eax = wrapper_read(f);
-		
-		int fd = get_int((int**)(f->esp), 1);
-		validate_void_ptr((const void*)fd);
+  case SYS_READ:
+  {
+    //f->eax = wrapper_read(f);
+    
+    int fd = get_int((int**)(f->esp), 1);
+    validate_void_ptr((const void*)fd);
 
-		void *buffer = get_void_ptr((void***)(f->esp), 2);
-		validate_void_ptr((const void*)buffer );
+    void *buffer = get_void_ptr((void***)(f->esp), 2);
+    validate_void_ptr((const void*)buffer );
 
-		unsigned size = get_int((int**)(f->esp), 3);
-		validate_void_ptr((const void*)size);
+    unsigned size = get_int((int**)(f->esp), 3);
+    validate_void_ptr((const void*)size);
 
-		f->eax = read (fd, buffer, size);
-		
-		break;
-	}
+    f->eax = read (fd, buffer, size);
+    
+    break;
+  }
 
-	case SYS_WRITE:
-	{
-		//f->eax = wrapper_write (f);
-		
-		int fd = get_int((int**)(f->esp), 1);
-		validate_void_ptr((const void*)fd);
+  case SYS_WRITE:
+  {
+    //f->eax = wrapper_write (f);
+    
+    int fd = get_int((int**)(f->esp), 1);
+    validate_void_ptr((const void*)fd);
 
-		void *buffer = get_void_ptr((void***)(f->esp), 2);
-		validate_void_ptr((const void*)buffer );
+    void *buffer = get_void_ptr((void***)(f->esp), 2);
+    validate_void_ptr((const void*)buffer );
 
 
-		unsigned size = get_int((int**)(f->esp), 3);
-		validate_void_ptr((const void*)size);
+    unsigned size = get_int((int**)(f->esp), 3);
+    validate_void_ptr((const void*)size);
 
-		f->eax = write ( fd, buffer, size);
-		
-		break;
-	}
+    f->eax = write ( fd, buffer, size);
+    
+    break;
+  }
 
-	case SYS_SEEK:
-	{
-		//wrapper_seek (f);
-		
-		int fd = get_int((int**)(f->esp), 1);
-		validate_void_ptr((const void*)fd);
+  case SYS_SEEK:
+  {
+    //wrapper_seek (f);
+    
+    int fd = get_int((int**)(f->esp), 1);
+    validate_void_ptr((const void*)fd);
 
-		unsigned position = get_int((int**)(f->esp), 2);
-		validate_void_ptr((const void*)position);
+    unsigned position = get_int((int**)(f->esp), 2);
+    validate_void_ptr((const void*)position);
 
-		seek ( fd, position);
-		
-		break;
-	}
+    seek ( fd, position);
+    
+    break;
+  }
 
-	case SYS_TELL:
-	{
-		//f->eax = wrapper_tell (f);
-		
-		int fd = get_int((int**)(f->esp), 1);
-		validate_void_ptr((const void*)fd);
+  
+case SYS_TELL:
+  {
+    //f->eax = wrapper_tell (f);
+    
+    int fd = get_int((int**)(f->esp), 1);
+    validate_void_ptr((const void*)fd);
 
-		f->eax = tell (fd);
-		
-		break;
-	}
+    f->eax = tell (fd);
+    
+    break;
+  }
 
-	case SYS_CLOSE:
-	{
-		//wrapper_close(f);
-		
-		int fd = get_int((int**)(f->esp), 1);
-		validate_void_ptr((const void*)fd);
+  case SYS_CLOSE:
+  {
+    //wrapper_close(f);
+    
+    int fd = get_int((int**)(f->esp), 1);
+    validate_void_ptr((const void*)fd);
 
-		close (fd);
-		
-		break;
-	}
+    close (fd);
+    
+    break;
+  }
   }
 }
 
 void validate_void_ptr(const void* pt){
-	if (!(is_user_vaddr (pt))){
-			exit (-1);
-	}
+  if (!(is_user_vaddr (pt))){
+      exit (-1);
+  }
 }
 
 
@@ -260,7 +262,7 @@ tid_t wait (int pid){
 
 bool create (const char *file, unsigned initial_size){
     if(file==NULL)
-	exit(-1);
+  exit(-1);
     lock_acquire(&sys_lock);
     bool created = filesys_create(file, initial_size);
     lock_release(&sys_lock);
@@ -278,7 +280,7 @@ bool rmv (const char *file)
 
 int open (const char *file){
     if(file==NULL)
-	return -1;
+  return -1;
     lock_acquire(&sys_lock);
     struct file* trial = filesys_open(file);
     if(trial == NULL)
@@ -293,7 +295,7 @@ int open (const char *file){
 
 int filesize (int fd){
     struct file_descriptor* file_d = get_file_d(fd);
-    if(file_d == NULL || file_d->file == NULL)
+    if(file_d == NULL ||  file_d->file == NULL)
         return -1;
     lock_acquire(&sys_lock);
     int size = file_length(file_d ->file);
@@ -329,7 +331,7 @@ int write (int fd, const void *buffer, unsigned size){
 
 void seek (int fd, unsigned position){
     struct file_descriptor* file_d = get_file_d(fd);
-    if(file_d == NULL|| file_d->file == NULL)
+    if(file_d == NULL || file_d->file == NULL)
         return;
     unsigned curr_pos = tell(fd);
     lock_acquire(&sys_lock);
@@ -359,14 +361,15 @@ void close (int fd){
 
 }
 
+  
 void close_files(struct thread *t){
     struct list_elem *e;
     while(!list_empty(&t->files)){
         e = list_pop_front(&t->files);
         struct file_descriptor *file_d = list_entry (e, struct file_descriptor, elem);
-     	file_close(file_d->file);
-     	list_remove(&file_d->elem);
-     	free(file_d);
+       file_close(file_d->file);
+       list_remove(&file_d->elem);
+       free(file_d);
     }
 }
 

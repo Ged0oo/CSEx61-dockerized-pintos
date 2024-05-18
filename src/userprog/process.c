@@ -51,11 +51,11 @@ process_execute (const char *file_name)
   free(new_file_name);
   if (tid == TID_ERROR)
     palloc_free_page (fn_copy);
-  //us
+  //waiting of parent process return -1 if failed to creat
   sema_down(&thread_current()->parent_child_sync);
   if(!thread_current()->child_succedeed)
     return -1 ;
- ////////////////////////////
+ /*******************************************************/
 
   return tid;
 }

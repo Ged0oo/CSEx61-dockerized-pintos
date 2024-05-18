@@ -80,6 +80,12 @@ filesys_open (const char *name)
    Returns true if successful, false on failure.
    Fails if no file named NAME exists,
    or if an internal memory allocation fails. */
+   /*
+   Unix-like semantics for filesys_remove() are implemented.
+    That is, if a file is open when it is removed,
+    its blocks are not deallocated and it may still be
+    accessed by any threads that have it open, until the last one closes it
+   */
 bool
 filesys_remove (const char *name) 
 {
