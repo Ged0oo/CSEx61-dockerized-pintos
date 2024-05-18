@@ -22,7 +22,7 @@ void halt(void){
 
 void exit(int status){
     struct thread * t = thread_current();
-    printf("%s: exit(%d)\n", t->name, status);
+    printf("%s: exit(%d)\n", t->name, status); //process termination message 
      if(!list_empty(&t->files));
         close_files(t);
      if(t->fd_exec != NULL)
