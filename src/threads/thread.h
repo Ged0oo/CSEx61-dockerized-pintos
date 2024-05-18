@@ -106,11 +106,10 @@ struct thread
     int child_status ;
     tid_t waiting_on ;                  /* to set which child this thread waiting for. */
     struct semaphore parent_child_sync ; /* to synchronize between parent and child. */
-    struct list files;                   /* opened files */
-    int fd_last;
+    struct list open_files;                   /* opened files */
+    int fd_last;                             /*file descriptor*/
     struct file *fd_exec;
-    ////////
-
+    
     struct list_elem allelem;           /* List element for all threads list. */
     /* Shared between thread.c and synch.c. */
     struct list_elem elem;              /* List element. */

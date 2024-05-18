@@ -10,46 +10,6 @@
 #include "user/syscall.h"
 #include "lib/syscall-nr.h"
 
-
-static void syscall_handler (struct intr_frame *);
-static struct lock file_lock_sync;
-
-int read_int_from_stack (int esp, int offset);
-void dispatch_syscall(int sys_code);
-char* read_char_ptr_from_stack(char*** esp, int offset);
-void* read_void_ptr_from_stack(void*** esp, int offset);
-void validate_user_ptr(const void* pt);
-
-void terminate_child_processes(struct thread* t);
-void close_all_files(struct thread* t);
-void remove_from_parent_list(struct thread* t);
-struct file_descriptor* get_file_descriptor(int fd);
-
-void
-syscall_init (void)
-{
-  intr_register_int (0x30, 3, INTR_ON, syscall_handler, "syscall");
-  lock_init(&sys_lock);
-}
-
-int read_int_from_stack (int esp, int offset){
-  // Calculate the address on the stack using the offset and read the integer value at that address.
-  int value = *((int*)esp + offset);
-  return value;
-}
-
-// Reads a character pointer from the stack at the given offset.
-char* read_char_ptr_from_stack(char*** esp, int offset){
-  char* char_ptr = (char*)(*((int*)esp + offset));
-  return char_ptr;
-}
-
-// Reads a void pointer from the stack at the given offset.
-void* read_void_ptr_from_stack(void*** esp, int offset){
-  void* void_ptr  = (void*)(*((int*)esp + offset));
-  return void_ptr;
-}
-
 static void
 syscall_handler (struct intr_frame *f UNUSED)
 {
@@ -169,6 +129,31 @@ syscall_handler (struct intr_frame *f UNUSED)
   }
 }
 
+void
+syscall_init (void)
+{
+  intr_register_int (0x30, 3, INTR_ON, syscall_handler, "syscall");
+  lock_init(&sys_lock);
+}
+
+int read_int_from_stack (int esp, int offset){
+  // Calculate the address on the stack using the offset and read the integer value at that address.
+  int value = *((int*)esp + offset);
+  return value;
+}
+
+// Reads a character pointer from the stack at the given offset.
+char* read_char_ptr_from_stack(char*** esp, int offset){
+  char* char_ptr = (char*)(*((int*)esp + offset));
+  return char_ptr;
+}
+
+// Reads a void pointer from the stack at the given offset.
+void* read_void_ptr_from_stack(void*** esp, int offset){
+  void* void_ptr  = (void*)(*((int*)esp + offset));
+  return void_ptr;
+}
+
 void validate_user_ptr(const void* ptr){
   // Check if the provided pointer is a valid user address.
   if (!(is_user_vaddr (ptr))){
@@ -177,40 +162,46 @@ void validate_user_ptr(const void* ptr){
   }
 }
 
+// Halt the system by powering off the machine.
 void system_halt (void) {
-  // Halt the system by powering off the machine.
   shutdown_power_off();
 }
 
 
 void exit(int status) {
-  struct thread *current_thread = thread_current();
-  // Print the thread name and exit status.
-  printf("%s: exit(%d)\n", current_thread->name, status);
 
-  // Close all open files if the thread has any.
-  if (!list_empty(&current_thread->files)) {
-    close_all_files(current_thread);
+  /*getting the current running thread which called exit function*/
+  struct thread *terminated_thread = thread_current();
+  /*________________________________________________________________________________*/
+
+  /*printing the termination message of current thread with full name and exit state*/
+  printf("%s: exit(%d)\n", terminated_thread->name, status);
+  /*________________________________________________________________________________*/
+
+  /*check for opened files by terminated process and close if exist using close file*/
+  if (!(list_empty(&terminated_thread->open_files))) {
+    close_opened_files(terminated_thread);
   }
+/*________________________________________________________________________________*/
 
   // Allow writing to the executable file if it is open.
-  if (current_thread->fd_exec != NULL) {
-      file_allow_write(current_thread->fd_exec);
+  if (terminated_thread->fd_exec != NULL) {
+      file_allow_write(terminated_thread->fd_exec);
    }
 
     // If the parent thread is waiting on this thread, update the parent's status and release the semaphore.
-    if (current_thread->parent_thread->waiting_on == current_thread->tid) {
-        current_thread->parent_thread->child_status = status;
-        current_thread->parent_thread->waiting_on = -1;
-        sema_up(&current_thread->parent_thread->parent_child_sync);
+    if (terminated_thread->parent_thread->waiting_on == terminated_thread->tid) {
+        terminated_thread->parent_thread->child_status = status;
+        terminated_thread->parent_thread->waiting_on = -1;
+        sema_up(&terminated_thread->parent_thread->parent_child_sync);
     } else {
         // Remove this thread from the parent's child list if the parent is not waiting on it.
-        remove_from_parent_list(current_thread);
+        remove_from_parent_list(terminated_thread);
     }
 
     // Terminate all child processes if any exist.
-    if (!list_empty(&current_thread->child_list)) {
-        terminate_child_processes(current_thread);
+    if (!list_empty(&terminated_thread->child_list)) {
+        terminate_child_processes(terminated_thread);
     }
 
     // Exit the thread.
@@ -279,7 +270,7 @@ int open_file(const char *file_name) {
     lock_release(&sys_lock);
     // Set the opened file and add the file descriptor to the current thread's list of open files.
     new_file_descriptor->file = opened_file;
-    list_push_back(&thread_current()->files, &new_file_descriptor->elem);
+    list_push_back(&thread_current()->open_files, &new_file_descriptor->elem);
     // Return the file descriptor associated with the opened file.
     return new_file_descriptor->fd;
 }
@@ -401,22 +392,22 @@ void close_file(int fd){
 }
 
   
-// Close all files associated with the given thread.
-void close_all_files(struct thread *t){
-    // Declare a list element to iterate through the list of open files.
-    struct list_elem *e;
-    // Iterate through the list of open files until it becomes empty.
-    while(!list_empty(&t->files)){
-        // Pop the front element from the list of open files.
-        e = list_pop_front(&t->files);
-        // Obtain the file descriptor corresponding to the popped element.
-        struct file_descriptor *file_d = list_entry (e, struct file_descriptor, elem);
+/*function for closing all opened files by terminated thread for exit*/
+void close_opened_files(struct thread *terminated_thread){
+    /*list element declaration for popping files from opend files list and close them*/
+    struct list_elem *popped_file;
+    /*while loop for closing all files opened by terminated thread*/
+    while(!(list_empty(&terminated_thread->open_files))){
+        /*Pop the front element from the list of open files*/
+        popped_file = list_pop_front(&terminated_thread->open_files);
+        /*Obtain the file descriptor corresponding to the popped element*/
+        struct file_descriptor *file_to_close = list_entry (popped_file, struct file_descriptor, elem);
         // Close the file associated with the file descriptor.
-        file_close(file_d->file);
+        file_close(file_to_close->file);
         // Remove the file descriptor from the list of open files.
-        list_remove(&file_d->elem);
+        list_remove(&file_to_close->elem);
         // Free the memory allocated for the file descriptor.
-        free(file_d);
+        free(file_to_close);
     }
 }
 
@@ -468,9 +459,9 @@ struct file_descriptor* get_file_descriptor(int fd){
     // Acquire the system lock to ensure thread safety while accessing the list of open files.
     lock_acquire(&sys_lock);
     // Check if the list of open files in the current thread is not empty.
-    if(!list_empty(&t->files)){
+    if(!list_empty(&t->open_files)){
         // Iterate through the list of open files.
-        for (e = list_begin (&t->files); e != list_end (&t->files); e = list_next (e)){
+        for (e = list_begin (&t->open_files); e != list_end (&t->open_files); e = list_next (e)){
             // Get the file descriptor corresponding to the current list element.
             struct file_descriptor *temp = list_entry (e, struct file_descriptor, elem);
             // If the file descriptor's file descriptor matches the given file descriptor, store it and break the loop.
