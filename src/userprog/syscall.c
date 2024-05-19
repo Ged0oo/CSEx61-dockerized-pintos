@@ -11,118 +11,114 @@
 #include "lib/syscall-nr.h"
 
 static void
-syscall_handler (struct intr_frame *f UNUSED)
+syscall_handler (struct intr_frame *f )
 {
-  void **esp = f->esp;
+  void *esp = f->esp;
   validate_user_ptr(esp);
-  int sys_code  = read_int_from_stack ((int)esp, 0);
+  int syscall_code  = read_int_from_stack ((int)esp, 0);
 
-  if (sys_code == SYS_HALT) {
-
-    // If the system call code is SYS_HALT, halt the system.
-    system_halt();
-
-  } else if (sys_code == SYS_EXIT) {
-
-    // If the system call code is SYS_EXIT, exit the process with the given status.
-    int status = read_int_from_stack((int **)f->esp, 1);
+  if (syscall_code == SYS_HALT) // If the system call code is SYS_HALT, halt the system.
+  {
+    shutdown_power_off(); // Halt the system by powering off the machine.
+  } 
+  else if (syscall_code == SYS_EXIT)  // If the system call code is SYS_EXIT, exit the process with the given status.
+  { 
+    int status = read_int_from_stack((int *)f->esp, 1);
     validate_user_ptr((const void *)status); // Validate the status pointer.
     exit(status);
 
-  } else if (sys_code == SYS_EXEC) {
+  } 
+  else if (syscall_code == SYS_EXEC) // If the system call code is SYS_EXEC, execute a new process.
+  {
+    char *command_line = read_char_ptr_from_stack((int *)(f->esp), 1);
+    validate_user_ptr((const void *)command_line); // Validate the command line pointer.
+    f->eax = process_execute(command_line); // Execute a new process given the command line and Store the result in eax.
+  } 
+  else if (syscall_code == SYS_WAIT) // If the system call code is SYS_WAIT, wait for a child process to terminate.
+  {
+    int process_id = read_int_from_stack((int *)(f->esp), 1);
+    validate_user_ptr((const void *)process_id); // Validate the PID pointer.
+    f->eax = process_wait(process_id); // Store the result in eax and Wait for a child process with the given process ID to terminate.
 
-    // If the system call code is SYS_EXEC, execute a new process.
-    char *cmd_line = read_char_ptr_from_stack((char ***)(f->esp), 1);
-    validate_user_ptr((const void *)cmd_line); // Validate the command line pointer.
-    f->eax = execute_command(cmd_line); // Store the result in eax.
-
-  } else if (sys_code == SYS_WAIT) {
-
-    // If the system call code is SYS_WAIT, wait for a child process to terminate.
-    int pid = read_int_from_stack((int **)(f->esp), 1);
-    validate_user_ptr((const void *)pid); // Validate the PID pointer.
-    f->eax = wait_for_process(pid); // Store the result in eax.
-
-  } else if (sys_code == SYS_CREATE) {
-
-    // If the system call code is SYS_CREATE, create a new file.
-    char *file = read_char_ptr_from_stack((char ***)(f->esp), 1);
+  } 
+  else if (syscall_code == SYS_CREATE) // If the system call code is SYS_CREATE, create a new file.
+  {
+    char *file = read_char_ptr_from_stack((int *)(f->esp), 1);
     validate_user_ptr((const void *)file); // Validate the file name pointer.
-    int initial_size = read_int_from_stack((int **)(f->esp), 2);
+    int initial_size = read_int_from_stack((int *)(f->esp), 2);
     validate_user_ptr((const void *)initial_size); // Validate the initial size pointer.
     f->eax = create_file(file, initial_size); // Store the result in eax.
-
-  } else if (sys_code == SYS_REMOVE) {
-
-    // If the system call code is SYS_REMOVE, remove a file.
-    char *file = read_char_ptr_from_stack((char ***)(f->esp), 1);
+  } 
+  else if (syscall_code == SYS_REMOVE) // If the system call code is SYS_REMOVE, remove a file.
+  {  
+    char *file = read_char_ptr_from_stack((int *)(f->esp), 1);
     validate_user_ptr((const void *)file); // Validate the file name pointer.
     f->eax = remove_file(file); // Store the result in eax.
 
-  } else if (sys_code == SYS_OPEN) {
-
-    // If the system call code is SYS_OPEN, open a file.
-    char *file = read_char_ptr_from_stack((char ***)(f->esp), 1);
+  } 
+  else if (syscall_code == SYS_OPEN) // If the system call code is SYS_OPEN, open a file.
+  {  
+    char *file = read_char_ptr_from_stack((int *)(f->esp), 1);
     validate_user_ptr((const void *)file); // Validate the file name pointer.
     f->eax = open_file(file); // Store the result in eax.
 
-  } else if (sys_code == SYS_FILESIZE) {
-
-    // If the system call code is SYS_FILESIZE, get the size of a file.
-    int fd = read_int_from_stack((int **)(f->esp), 1);
+  } 
+  else if (syscall_code == SYS_FILESIZE) // If the system call code is SYS_FILESIZE, get the size of a file.
+  {  
+    int fd = read_int_from_stack((int *)(f->esp), 1);
     validate_user_ptr((const void *)fd); // Validate the file descriptor pointer.
     f->eax = get_filesize(fd); // Store the result in eax.
 
-  } else if (sys_code == SYS_READ) {
+  } else if (syscall_code == SYS_READ) {
 
     // If the system call code is SYS_READ, read from a file.
-    int fd = read_int_from_stack((int **)(f->esp), 1);
+    int fd = read_int_from_stack((int *)(f->esp), 1);
 
     validate_user_ptr((const void *)fd); // Validate the file descriptor pointer.
-    void *buffer = read_void_ptr_from_stack((void ***)(f->esp), 2);
+    void *buffer = read_void_ptr_from_stack((int *)(f->esp), 2);
 
     validate_user_ptr((const void *)buffer); // Validate the buffer pointer.
-    unsigned size = read_int_from_stack((int **)(f->esp), 3);
+    unsigned size = read_int_from_stack((int *)(f->esp), 3);
 
     validate_user_ptr((const void *)size); // Validate the size pointer.
     f->eax = read_file(fd, buffer, size); // Store the result in eax.
 
-  } else if (sys_code == SYS_WRITE) {
+  } else if (syscall_code == SYS_WRITE) {
 
     // If the system call code is SYS_WRITE, write to a file.
-    int fd = read_int_from_stack((int **)(f->esp), 1);
+    int fd = read_int_from_stack((int *)(f->esp), 1);
 
     validate_user_ptr((const void *)fd); // Validate the file descriptor pointer.
-    void *buffer = read_void_ptr_from_stack((void ***)(f->esp), 2);
+    void *buffer = read_void_ptr_from_stack((int *)(f->esp), 2);
 
     validate_user_ptr((const void *)buffer); // Validate the buffer pointer.
-    unsigned size = read_int_from_stack((int **)(f->esp), 3);
+    unsigned size = read_int_from_stack((int *)(f->esp), 3);
 
     validate_user_ptr((const void *)size); // Validate the size pointer.
     f->eax = write_file(fd, buffer, size); // Store the result in eax.
 
-  } else if (sys_code == SYS_SEEK) {
+  } else if (syscall_code == SYS_SEEK) {
 
     // If the system call code is SYS_SEEK, seek within a file.
-    int fd = read_int_from_stack((int **)(f->esp), 1);
+    int fd = read_int_from_stack((int *)(f->esp), 1);
     validate_user_ptr((const void *)fd); // Validate the file descriptor pointer.
-    unsigned position = read_int_from_stack((int **)(f->esp), 2);
+    unsigned position = read_int_from_stack((int *)(f->esp), 2);
 
     validate_user_ptr((const void *)position); // Validate the position pointer.
     set_file_position(fd, position);
 
-  } else if (sys_code == SYS_TELL) {
+  } else if (syscall_code == SYS_TELL) {
 
     // If the system call code is SYS_TELL, get the current position within a file.
-    int fd = read_int_from_stack((int **)(f->esp), 1);
+    int fd = read_int_from_stack((int *)(f->esp), 1);
 
     validate_user_ptr((const void *)fd); // Validate the file descriptor pointer.
     f->eax = get_file_position(fd); // Store the result in eax.
 
-  } else if (sys_code == SYS_CLOSE) {
+  } else if (syscall_code == SYS_CLOSE) {
 
     // If the system call code is SYS_CLOSE, close a file.
-    int fd = read_int_from_stack((int **)(f->esp), 1);
+    int fd = read_int_from_stack((int *)(f->esp), 1);
     validate_user_ptr((const void *)fd); // Validate the file descriptor pointer.
     close_file(fd);
 
@@ -138,18 +134,18 @@ syscall_init (void)
 
 int read_int_from_stack (int esp, int offset){
   // Calculate the address on the stack using the offset and read the integer value at that address.
-  int value = *((int*)esp + offset);
+  int value =(int)( *((int*)esp + offset));
   return value;
 }
 
 // Reads a character pointer from the stack at the given offset.
-char* read_char_ptr_from_stack(char*** esp, int offset){
+char* read_char_ptr_from_stack(int * esp, int offset){
   char* char_ptr = (char*)(*((int*)esp + offset));
   return char_ptr;
 }
 
 // Reads a void pointer from the stack at the given offset.
-void* read_void_ptr_from_stack(void*** esp, int offset){
+void* read_void_ptr_from_stack(int * esp, int offset){
   void* void_ptr  = (void*)(*((int*)esp + offset));
   return void_ptr;
 }
@@ -161,12 +157,6 @@ void validate_user_ptr(const void* ptr){
     exit (-1);
   }
 }
-
-// Halt the system by powering off the machine.
-void system_halt (void) {
-  shutdown_power_off();
-}
-
 
 void exit(int status) {
 
@@ -206,16 +196,6 @@ void exit(int status) {
 
     // Exit the thread.
     thread_exit();
-}
-
-// Execute a new process given the command line.
-tid_t execute_command (const char *command_line){
-    return process_execute(command_line);
-}
-
-// Wait for a child process with the given process ID to terminate.
-tid_t wait_for_process (int process_id){
-    return process_wait(process_id);
 }
 
 // Create a new file with the specified file name and initial size.

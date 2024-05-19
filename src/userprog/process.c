@@ -19,7 +19,7 @@
 #include "threads/vaddr.h"
 #include "filesys/inode.h"
 
-static thread_func start_process NO_RETURN;
+static thread_func start_process ;
 static bool load (const char *cmdline, void (**eip) (void), void **esp);
 
 extern struct list all_list;
@@ -32,7 +32,7 @@ tid_t
 process_execute (const char *file_name)
 {
   char *fn_copy;
-  char *new_file_name;
+  char *file_name_copy;
   tid_t tid;
   /* Make a copy of FILE_NAME.
      Otherwise there's a race between the caller and load(). */
@@ -42,13 +42,13 @@ process_execute (const char *file_name)
   strlcpy (fn_copy, file_name, PGSIZE);
 
   char *save_ptr;
-  new_file_name = malloc(strlen(file_name)+1);
-  strlcpy (new_file_name, file_name, strlen(file_name)+1);
-  new_file_name = strtok_r (new_file_name," ",&save_ptr);
+  file_name_copy = malloc(strlen(file_name)+1);
+  strlcpy (file_name_copy, file_name, strlen(file_name)+1);
+  file_name_copy = strtok_r (file_name_copy," ",&save_ptr);
 
   /* Create a new thread to execute FILE_NAME. */
-  tid = thread_create (new_file_name, PRI_DEFAULT, start_process, fn_copy);
-  free(new_file_name);
+  tid = thread_create (file_name_copy, PRI_DEFAULT, start_process, fn_copy);
+  free(file_name_copy);
   if (tid == TID_ERROR)
     palloc_free_page (fn_copy);
   //waiting of parent process return -1 if failed to creat
@@ -121,8 +121,8 @@ process_wait (tid_t child_tid UNUSED)
 {
   struct list_elem *e;
   struct child_process *child;
-  bool check=false;
-  struct list_elem *e_temp;
+  bool Is_valid_child=false;
+  struct list_elem *temp_e;
   if(child_tid==TID_ERROR)
     return -1;
   for (e = list_rbegin (&thread_current()->child_list); e != list_rend (&thread_current()->child_list);
@@ -132,22 +132,22 @@ process_wait (tid_t child_tid UNUSED)
 
         if(temp_child->pid==child_tid)
          {
-             check=true;
+             Is_valid_child=true;
              child=temp_child;
-             e_temp=e;
+             temp_e=e;
          }
   }
-  if(!check)
+  if(Is_valid_child)
   {
-     return -1;
+    thread_current()->waiting_on=child_tid;
+    list_remove(temp_e);
+    sema_up(&child->t->parent_child_sync);
+    sema_down(&thread_current()->parent_child_sync);
+    return thread_current()->child_status;  
   }
   else
   {
-    thread_current()->waiting_on=child_tid;
-    list_remove(e_temp);
-    sema_up(&child->t->parent_child_sync);
-    sema_down(&thread_current()->parent_child_sync);
-    return thread_current()->child_status;
+    return -1;
   }
 }
 
@@ -283,15 +283,15 @@ load (const char *file_name, void (**eip) (void), void **esp)
 
      //us
   char *save_ptr;
-  char *new_file_name = malloc(strlen(file_name)+1);
-  strlcpy (new_file_name, file_name, strlen(file_name)+1);
-  new_file_name = strtok_r (new_file_name," ",&save_ptr);
+  char *file_name_copy = malloc(strlen(file_name)+1);
+  strlcpy (file_name_copy, file_name, strlen(file_name)+1);
+  file_name_copy = strtok_r (file_name_copy," ",&save_ptr);
   //
   /* Open executable file. */
-  file = filesys_open (new_file_name);
+  file = filesys_open (file_name_copy);
   if (file == NULL)
     {
-      printf ("load: %s: open failed\n", new_file_name);
+      printf ("load: %s: open failed\n", file_name_copy);
       success=false;
       goto done;
     }
@@ -310,10 +310,10 @@ load (const char *file_name, void (**eip) (void), void **esp)
       || ehdr.e_phentsize != sizeof (struct Elf32_Phdr)
       || ehdr.e_phnum > 1024)
     {
-      printf ("load: %s: error loading executable\n", new_file_name);
+      printf ("load: %s: error loading executable\n", file_name_copy);
       goto done;
     }
-    free(new_file_name);
+    free(file_name_copy);
 
   /* Read program headers. */
   file_ofs = ehdr.e_phoff;
@@ -517,12 +517,12 @@ setup_stack (void **esp,char * file_name)
     //us
   char *save_ptr;
   char* token;
-  char *new_file_name;
+  char *file_name_copy;
   char* argv[50];
   int argc = 0;
-  new_file_name = malloc(strlen(file_name)+1);
-  strlcpy (new_file_name, file_name, strlen(file_name)+1);
-  for (token = strtok_r (new_file_name, " ", &save_ptr); token != NULL;
+  file_name_copy = malloc(strlen(file_name)+1);
+  strlcpy (file_name_copy, file_name, strlen(file_name)+1);
+  for (token = strtok_r (file_name_copy, " ", &save_ptr); token != NULL;
         token = strtok_r (NULL, " ", &save_ptr)){
 	argv[argc]=token;
 	argc++;
@@ -563,7 +563,7 @@ setup_stack (void **esp,char * file_name)
   memcpy(*esp,&z, sizeof(void*));
 
   //hex_dump((uintptr_t)*esp,*esp,(size_cnt-2)*4 , true);
-  free(new_file_name);
+  free(file_name_copy);
   /////////////////////////////////////////////////////////////////////
 
   return success;

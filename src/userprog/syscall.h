@@ -19,10 +19,7 @@ struct file_descriptor* get_file_descriptor(int fd);
 void syscall_init (void);
 
 //actual called function of system call
-void system_halt(void);
 void exit (int status);
-tid_t execute_command (const char *command_line);
-tid_t wait_for_process (int pid);
 bool create_file (const char *file_name, unsigned initial_size);
 bool remove_file (const char *file_name);
 int open_file (const char *file_name);
@@ -34,9 +31,9 @@ unsigned get_file_position (int fd);
 void close_file (int fd);
 
 int read_int_from_stack (int esp, int offset);
-char* read_char_ptr_from_stack(char*** esp, int offset);
+char* read_char_ptr_from_stack(int * esp, int offset);
 static void syscall_handler (struct intr_frame *);
-void* read_void_ptr_from_stack(void*** esp, int offset);
+void* read_void_ptr_from_stack(int * esp, int offset);
 void dispatch_syscall(int sys_code);
 void validate_user_ptr(const void* pt);
 void terminate_child_processes(struct thread* t);
