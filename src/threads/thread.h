@@ -4,6 +4,15 @@
 #include <debug.h>
 #include <list.h>
 #include <stdint.h>
+#include "threads/synch.h"
+#include "filesys/file.h"
+
+struct child_process
+  {
+      int pid;
+      struct thread *t ;
+      struct list_elem elem;
+  };
 
 /* States in a thread's life cycle. */
 enum thread_status
@@ -88,10 +97,23 @@ struct thread
     char name[16];                      /* Name (for debugging purposes). */
     uint8_t *stack;                     /* Saved stack pointer. */
     int priority;                       /* Priority. */
-    struct list_elem allelem;           /* List element for all threads list. */
 
+    // us
+    int64_t sleeping_ticks;             /* # of ticks to sleep. */
+    struct list child_list ;            /* list of children . */
+    struct thread * parent_thread;      /* parent of this threads. */
+    bool child_succedeed ;              /* to check child creation success. */
+    int child_status ;
+    tid_t waiting_on ;                  /* to set which child this thread waiting for. */
+    struct semaphore parent_child_sync ; /* to synchronize between parent and child. */
+    struct list open_files;                   /* opened files */
+    int fd_last;                             /*file descriptor*/
+    struct file *fd_exec;
+    
+    struct list_elem allelem;           /* List element for all threads list. */
     /* Shared between thread.c and synch.c. */
     struct list_elem elem;              /* List element. */
+
 
 #ifdef USERPROG
     /* Owned by userprog/process.c. */
