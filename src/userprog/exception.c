@@ -35,8 +35,7 @@ exception_init (void)
      invoke them via these instructions. */
   intr_register_int (3, 3, INTR_ON, kill, "#BP Breakpoint Exception");
   intr_register_int (4, 3, INTR_ON, kill, "#OF Overflow Exception");
-  intr_register_int (5, 3, INTR_ON, kill,
-                     "#BR BOUND Range Exceeded Exception");
+  intr_register_int (5, 3, INTR_ON, kill,"#BR BOUND Range Exceeded Exception");
 
   /* These exceptions have DPL==0, preventing user processes from
      invoking them via the INT instruction.  They can still be
@@ -99,7 +98,7 @@ kill (struct intr_frame *f)
          here.)  Panic the kernel to make the point.  */
       intr_dump_frame (f);
       PANIC ("Kernel bug - unexpected interrupt in kernel");
-      
+
     default:
       /* Some other code segment?  Shouldn't happen.  Panic the
          kernel. */
