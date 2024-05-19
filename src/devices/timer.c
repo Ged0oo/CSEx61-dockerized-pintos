@@ -7,6 +7,7 @@
 #include "threads/interrupt.h"
 #include "threads/synch.h"
 #include "threads/thread.h"
+/*including list.h for list options usage for sleeping threads*/
 #include <kernel/list.h>
   
 /* See [8254] for hardware details of the 8254 timer chip. */
@@ -20,7 +21,7 @@
 
 /* Number of timer ticks since OS booted. */
 static int64_t ticks;
-
+/*define list for storing sleeping threads*/
 struct list sleepy_threads_list;
 
 /* Number of loops per timer tick.
@@ -32,7 +33,7 @@ static bool too_many_loops (unsigned loops);
 static void busy_wait (int64_t loops);
 static void real_time_sleep (int64_t num, int32_t denom);
 static void real_time_delay (int64_t num, int32_t denom);
-
+/*declaration of cmp_tick function for usage inside interrupt handler for list_insert_ordered*/
 static bool cmp_tick_to_wakup(struct list_elem *first, struct list_elem *second, void *aux);
 
 /* Sets up the timer to interrupt TIMER_FREQ times per second,
@@ -42,6 +43,7 @@ timer_init (void)
 {
   pit_configure_channel (0, 2, TIMER_FREQ);
   intr_register_ext (0x20, timer_interrupt, "8254 Timer");
+  /*intialization of sleepy list*/
   list_init (&sleepy_threads_list);
 }
 
@@ -90,8 +92,7 @@ timer_elapsed (int64_t then)
   return timer_ticks () - then;
 }
 
-/* Sleeps for approximately TICKS timer ticks.  Interrupts must
-   be turned on. */
+/* Sleeps for approximately TICKS timer ticks.  Interrupts must be turned on. */
 void
 timer_sleep (int64_t ticks) 
 {
@@ -279,7 +280,7 @@ real_time_delay (int64_t num, int32_t denom)
   ASSERT (denom % 1000 == 0);
   busy_wait (loops_per_tick * num / 1000 * TIMER_FREQ / (denom / 1000)); 
 }
-
+/*function defintion*/
 static bool cmp_tick_to_wakup(struct list_elem *first, struct list_elem *second, void *aux)
 {
   struct thread *fthread = list_entry (first, struct thread, elem);
